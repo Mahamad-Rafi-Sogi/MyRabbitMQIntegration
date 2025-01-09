@@ -1,0 +1,89 @@
+version: '3'
+
+networks:
+  app-network:
+    driver: bridge
+    
+services:
+  postgres-orchestrator:
+    image: postgres:15
+    container_name: postgres-container-orchestrator
+    environment:
+      POSTGRES_DB: inventory_management
+      POSTGRES_USER: bosch
+      POSTGRES_PASSWORD: very_secret
+    volumes:
+      - ./postgres_orchestrator_data:/var/lib/postgresql/data
+      - ./helpers/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bosch"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-container
+    environment:
+      RABBITMQ_DEFAULT_USER: bosch
+      RABBITMQ_DEFAULT_PASS: very_secret
+    volumes:
+      - ./rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq_logs:/var/log/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      
+  event_producer:
+    image: openjdk:17
+    container_name: event-producer-container
+    volumes:
+      - ./event_producer:/app
+      - ./wait-for-it.sh:/wait-for-it.sh
+    environment:
+      - rabbitmq.host=rabbitmq-container
+      - rabbitmq.port=5672
+      - rabbitmq.username=bosch
+      - rabbitmq.password=very_secret
+    working_dir: /app
+    command: ["java", "-jar", "/app/target/event_producer-0.0.1-SNAPSHOT.jar"]
+    networks:
+      - app-network
+    depends_on:
+      rabbitmq:
+         condition: service_healthy
+
+  event_consumer:
+    image: openjdk:17
+    container_name: event-consumer-container
+    volumes:
+      - ./event_consumer:/app
+    environment:
+      - rabbitmq.host=rabbitmq-container
+      - rabbitmq.port=5672
+      - rabbitmq.username=bosch
+      - rabbitmq.password=very_secret
+      - spring.datasource.username=bosch
+      - spring.datasource.password=very_secret
+      - spring.datasource.url=jdbc:postgresql://postgres-orchestrator:5432/inventory_management
+      - spring.datasource.driverClassName=org.postgresql.Driver
+    working_dir: /app
+    command: ["java", "-jar", "/app/target/event_consumer-0.0.1-SNAPSHOT.jar"]
+    networks:
+      - app-network
+    depends_on:
+      rabbitmq:
+         condition: service_healthy
+      postgres-orchestrator:
+         condition: service_healthy
