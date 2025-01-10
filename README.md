@@ -22,3 +22,10 @@ This project includes an **Event Producer** and **Event Consumer** that use **Ra
 3.Access rabbitMQ using this url
 http://localhost:15672/
 
+4.Access database by these stoes:
+
+once your all services are up then
+	- docker exec -it postgres-container-orchestrator bash
+	- psql -U bosch -d inventory_management
+	- \dt
+	- SELECT * FROM warehouse_request_event;

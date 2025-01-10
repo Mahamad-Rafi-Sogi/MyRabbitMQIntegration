@@ -63,6 +63,7 @@ public class MessageProducer {
                     Thread.sleep(messageDelay);
                     
                     if(count > 20) {
+                    	System.out.println("tried with 20 random inputs, if you want to check more please update count from MessageProducer service ");
                         isRunning = false;
                     }
                 } catch (Exception e) {
